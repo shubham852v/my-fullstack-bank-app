@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const transactionSchema = new mongoose.Schema({
     account: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Account', // Reference to the Account model
+        ref: 'Account',
         required: true
     },
     type: {
@@ -22,12 +22,10 @@ const transactionSchema = new mongoose.Schema({
     }
 });
 
-// Static method to get transactions by account ID
 transactionSchema.statics.getTransactionsByAccountId = async function(accountId) {
     return this.find({ account: accountId }).sort({ timestamp: -1 }).exec();
 };
 
-// Static method to create a new transaction
 transactionSchema.statics.createTransaction = async function(accountId, type, amount) {
     const newTransaction = new this({
         account: accountId,

@@ -24,11 +24,11 @@ router.post(
     customerController.withdraw
 );
 
-// New: Route for a customer to update their own profile
+
 router.put(
-    '/profile', // No :userId parameter, as it updates the authenticated user's profile
+    '/profile',
     authMiddleware.verifyToken,
-    authMiddleware.isCustomer, // Only customers can use this route
+    authMiddleware.isCustomer,
     customerController.updateProfile
 );
 

@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const validator = require('validator'); // For email validation
+const validator = require('validator');
 
 const userSchema = new mongoose.Schema({
     username: {
@@ -25,7 +25,7 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Password is required'],
         minlength: [6, 'Password must be at least 6 characters long'],
-        select: false // Do not return password by default in queries
+        select: false
     },
     role: {
         type: String,
@@ -36,12 +36,8 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
     }
-}, {
-    // Mongoose automatically adds `_id`
-    // No `timestamps: true` here as we have custom `createdAt`
 });
 
-// Hash password before saving
 userSchema.pre('save', async function(next) {
     if (!this.isModified('password')) {
         return next();
@@ -51,16 +47,14 @@ userSchema.pre('save', async function(next) {
     next();
 });
 
-// Method to compare passwords
 userSchema.methods.comparePassword = async function(candidatePassword) {
     return bcrypt.compare(candidatePassword, this.password);
 };
 
-// Method to find user by username or email (for login)
 userSchema.statics.findByUsernameOrEmail = async function(identifier) {
     const user = await this.findOne({
         $or: [{ username: identifier }, { email: identifier }]
-    }).select('+password'); // Select password explicitly for login comparison
+    }).select('+password');
     return user;
 };
 

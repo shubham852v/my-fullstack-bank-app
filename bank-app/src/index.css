@@ -2,16 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global styles for a consistent look */
+
 body {
   font-family: 'Inter', sans-serif;
   @apply bg-gray-50 text-gray-800 antialiased;
 }
 
-/* Custom scrollbar for better aesthetics */
+
 ::-webkit-scrollbar {
   width: 8px;
-  height: 8px; /* For horizontal scrollbars */
+  height: 8px; 
 }
 
 ::-webkit-scrollbar-track {

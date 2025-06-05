@@ -24,7 +24,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('user', JSON.stringify(userData));
         setAccessToken(token);
         setUser(userData);
-        // Redirect to dashboard-redirect route after login
+        
         navigate('/dashboard-redirect');
     };
 
@@ -53,3 +53,4 @@ export const AuthProvider = ({ children }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
+

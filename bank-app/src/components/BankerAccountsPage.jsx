@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getAllCustomerAccounts } from '../api/banker';
-import { useAuth } from '../AuthContext.jsx'; // Corrected import to .jsx
+import { useAuth } from '../AuthContext.jsx'; 
 import { Link } from 'react-router-dom';
 
 const BankerAccountsPage = () => {

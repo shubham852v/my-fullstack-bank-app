@@ -1,10 +1,10 @@
 const Account = require('../models/accountModel');
 const Transaction = require('../models/transactionModel');
-const User = require('../models/userModel'); // Import User model
-const { invalidateToken } = require('../middleware/authMiddleware'); // Import invalidateToken
+const User = require('../models/userModel');
+const { invalidateToken } = require('../middleware/authMiddleware');
 
 exports.getCustomerDashboard = async (req, res) => {
-    const { userId } = req.user; // userId is a string representation of MongoDB ObjectId
+    const { userId } = req.user;
 
     try {
         const account = await Account.getAccountByUserId(userId);
@@ -14,7 +14,6 @@ exports.getCustomerDashboard = async (req, res) => {
 
         const transactions = await Transaction.getTransactionsByAccountId(account._id);
 
-        // Map account and transactions to match previous API response structure
         res.status(200).json({
             account: {
                 accountId: account._id,
@@ -45,7 +44,6 @@ exports.deposit = async (req, res) => {
     }
 
     try {
-        // Find account by user ID
         const account = await Account.getAccountByUserId(userId);
         if (!account) {
             return res.status(404).json({ message: 'Account not found.' });
@@ -53,12 +51,8 @@ exports.deposit = async (req, res) => {
 
         const newBalance = account.balance + parseFloat(amount);
 
-        // Update balance and create transaction.
-        // For simplicity, using single document update for balance.
-        // For strict atomicity across multiple documents, MongoDB transactions
-        // (requiring replica set) would be used.
-        await Account.updateBalance(account._id, newBalance); // Update balance
-        await Transaction.createTransaction(account._id, 'deposit', amount); // Create transaction
+        await Account.updateBalance(account._id, newBalance);
+        await Transaction.createTransaction(account._id, 'deposit', amount);
 
         res.status(200).json({
             message: 'Deposit successful',
@@ -91,8 +85,8 @@ exports.withdraw = async (req, res) => {
 
         const newBalance = account.balance - parseFloat(amount);
 
-        await Account.updateBalance(account._id, newBalance); // Update balance
-        await Transaction.createTransaction(account._id, 'withdrawal', amount); // Create transaction
+        await Account.updateBalance(account._id, newBalance);
+        await Transaction.createTransaction(account._id, 'withdrawal', amount);
 
         res.status(200).json({
             message: 'Withdrawal successful',
@@ -106,8 +100,8 @@ exports.withdraw = async (req, res) => {
 };
 
 exports.updateProfile = async (req, res) => {
-    const { userId: authenticatedUserId, role: authenticatedUserRole } = req.user; // User ID from the token
-    const { username, email, password } = req.body; // New details from request body
+    const { userId: authenticatedUserId, role: authenticatedUserRole } = req.user;
+    const { username, email, password } = req.body;
 
     try {
         if (authenticatedUserRole !== 'customer') {
@@ -119,18 +113,16 @@ exports.updateProfile = async (req, res) => {
             return res.status(404).json({ message: 'Authenticated user not found.' });
         }
 
-        // Only update fields that are provided
         if (username !== undefined) userToUpdate.username = username;
         if (email !== undefined) userToUpdate.email = email;
         if (password !== undefined) {
-            // Mongoose pre-save hook will hash the password if it's modified
             userToUpdate.password = password;
         }
 
-        await userToUpdate.save(); // Save the updated user document
+        await userToUpdate.save();
 
         if (password || username || email) {
-            invalidateToken(req.headers['authorization']); // Invalidate the current token
+            invalidateToken(req.headers['authorization']);
             return res.status(200).json({ message: 'Your profile updated successfully. Please log in again with new credentials.', reauthenticate: true });
         }
 
@@ -138,7 +130,6 @@ exports.updateProfile = async (req, res) => {
 
     } catch (error) {
         console.error('Error updating customer profile:', error);
-        // MongoDB duplicate key error code
         if (error.code === 11000) {
             const field = Object.keys(error.keyValue)[0];
             return res.status(409).json({ message: `${field.charAt(0).toUpperCase() + field.slice(1)} already exists.` });

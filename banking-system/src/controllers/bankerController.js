@@ -1,14 +1,12 @@
-const Account = require('../models/accountModel'); // Use Account model (capitalized)
-const User = require('../models/userModel'); // Use User model (capitalized)
-const Transaction = require('../models/transactionModel'); // Use Transaction model (capitalized)
+const Account = require('../models/accountModel');
+const User = require('../models/userModel');
+const Transaction = require('../models/transactionModel');
 const bcrypt = require('bcryptjs');
 const { invalidateToken } = require('../middleware/authMiddleware');
 
 exports.getAllCustomerAccounts = async (req, res) => {
     try {
-        // Mongoose populate handles joining, no need for complex SQL
         const accounts = await Account.getAllCustomerAccounts();
-        // Filter to only include customer accounts if not handled by getAllCustomerAccounts itself
         const customerAccounts = accounts.filter(acc => acc.user && acc.user.role === 'customer')
                                        .map(acc => ({
                                            account_id: acc._id,
@@ -28,22 +26,21 @@ exports.getAllCustomerAccounts = async (req, res) => {
 };
 
 exports.getCustomerTransactions = async (req, res) => {
-    const { userId } = req.params; // This is a Mongoose ObjectId as a string
+    const { userId } = req.params;
 
     try {
-        const user = await User.findById(userId); // Find user by ID
+        const user = await User.findById(userId);
         if (!user || user.role !== 'customer') {
             return res.status(404).json({ message: 'Customer not found or invalid user role.' });
         }
 
-        const account = await Account.getAccountByUserId(userId); // Find account by user ObjectId
+        const account = await Account.getAccountByUserId(userId);
         if (!account) {
             return res.status(404).json({ message: 'Account not found for this customer.' });
         }
 
-        const transactions = await Transaction.getTransactionsByAccountId(account._id); // Find transactions by account ObjectId
+        const transactions = await Transaction.getTransactionsByAccountId(account._id);
 
-        // Map transactions to match previous API response structure
         const formattedTransactions = transactions.map(tx => ({
             transaction_id: tx._id,
             account_id: tx.account,
@@ -73,9 +70,9 @@ exports.getCustomerTransactions = async (req, res) => {
 };
 
 exports.updateUser = async (req, res) => {
-    const { userId } = req.params; // User ID to update (MongoDB ObjectId as string)
-    const { username, email, password } = req.body; // New details from request body
-    const requestingUser = req.user; // User making the request (from token)
+    const { userId } = req.params;
+    const { username, email, password } = req.body;
+    const requestingUser = req.user;
 
     try {
         if (requestingUser.role !== 'banker') {
@@ -87,17 +84,14 @@ exports.updateUser = async (req, res) => {
             return res.status(404).json({ message: 'User not found.' });
         }
 
-        // Only update fields that are provided
         if (username !== undefined) userToUpdate.username = username;
         if (email !== undefined) userToUpdate.email = email;
         if (password !== undefined) {
-            // Mongoose pre-save hook will hash the password if it's modified
             userToUpdate.password = password;
         }
 
-        await userToUpdate.save(); // Save the updated user document
+        await userToUpdate.save();
 
-        // Invalidate the token if user's own credentials were updated
         if (password || username || email) {
             if (String(requestingUser.userId) === String(userId)) {
                 invalidateToken(req.headers['authorization']);
@@ -109,7 +103,6 @@ exports.updateUser = async (req, res) => {
 
     } catch (error) {
         console.error('Error updating user:', error);
-        // MongoDB duplicate key error code
         if (error.code === 11000) {
             const field = Object.keys(error.keyValue)[0];
             return res.status(409).json({ message: `${field.charAt(0).toUpperCase() + field.slice(1)} already exists.` });

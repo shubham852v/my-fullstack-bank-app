@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getCustomerDashboard, depositAmount, withdrawAmount } from '../api/customer';
-import { useAuth } from '../AuthContext.jsx'; // Corrected import to .jsx
+import { useAuth } from '../AuthContext.jsx'; 
+import { useNavigate } from 'react-router-dom';
 
 const CustomerTransactionsPage = () => {
     const [dashboardData, setDashboardData] = useState(null);
@@ -12,12 +13,14 @@ const CustomerTransactionsPage = () => {
     const [popupMessage, setPopupMessage] = useState('');
 
     const { user, logout } = useAuth();
+    const navigate = useNavigate();
 
     const fetchDashboardData = async () => {
         try {
             if (!user || user.role !== 'customer') {
                 alert("Unauthorized access. Please login as a customer.");
                 logout();
+                navigate('/login');
                 return;
             }
             const data = await getCustomerDashboard();
@@ -38,7 +41,7 @@ const CustomerTransactionsPage = () => {
         if (user) {
             fetchDashboardData();
         }
-    }, [user, logout]);
+    }, [user, logout, navigate]);
 
     const handleTransaction = async () => {
         setPopupMessage('');

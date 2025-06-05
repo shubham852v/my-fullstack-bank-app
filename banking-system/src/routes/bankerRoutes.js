@@ -17,12 +17,10 @@ router.get(
     bankerController.getCustomerTransactions
 );
 
-// New: Route to update a user's details (username, email, password)
-// Accessible by bankers to update any user.
 router.put(
-    '/users/:userId', // :userId is a URL parameter for the user to update
+    '/users/:userId',
     authMiddleware.verifyToken,
-    authMiddleware.isBanker, // Only bankers can use this route
+    authMiddleware.isBanker,
     bankerController.updateUser
 );
 
