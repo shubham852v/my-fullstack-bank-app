@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getCustomerTransactions } from '../api/banker';
+import { getCustomerTransactions } from '../api/banker.jsx';
 import { useAuth } from '../AuthContext.jsx'; 
 
 const BankerCustomerTransactionsPage = () => {

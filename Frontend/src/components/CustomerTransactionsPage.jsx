@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getCustomerDashboard, depositAmount, withdrawAmount } from '../api/customer';
+import { getCustomerDashboard, depositAmount, withdrawAmount } from '../api/customer.jsx';
 import { useAuth } from '../AuthContext.jsx'; 
 import { useNavigate } from 'react-router-dom';
 

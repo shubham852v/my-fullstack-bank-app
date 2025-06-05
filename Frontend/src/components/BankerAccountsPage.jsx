@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getAllCustomerAccounts } from '../api/banker';
+import { getAllCustomerAccounts } from '../api/banker.jsx';
 import { useAuth } from '../AuthContext.jsx'; 
 import { Link } from 'react-router-dom';
 
