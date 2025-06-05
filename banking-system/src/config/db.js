@@ -1,25 +1,27 @@
 // banking-system/src/config/db.js
-const mysql = require('mysql2/promise'); // Use mysql2 for MySQL
+const mongoose = require('mongoose');
 require('dotenv').config();
 
-const pool = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-});
+const connectDB = async () => {
+    try {
+        const mongoUri = process.env.MONGO_URI;
+        if (!mongoUri) {
+            console.error('Error: MONGO_URI environment variable is not set.');
+            process.exit(1);
+        }
 
-pool.getConnection()
-    .then(connection => {
-        console.log('Successfully connected to MySQL database!');
-        connection.release(); // Release the connection
-    })
-    .catch(err => {
-        console.error('Error connecting to MySQL database:', err.message);
-        process.exit(1); // Exit process if cannot connect to DB
-    });
+        await mongoose.connect(mongoUri, {
+            // useNewUrlParser: true, // Deprecated in Mongoose 6+
+            // useUnifiedTopology: true, // Deprecated in Mongoose 6+
+            // useCreateIndex: true, // Deprecated in Mongoose 6+ (for `createIndex`)
+            // useFindAndModify: false // Deprecated in Mongoose 6+ (for `findOneAndUpdate`, `findByIdAndUpdate`, etc.)
+            // Mongoose 6+ options are typically fine by default
+        });
+        console.log('MongoDB connected successfully!');
+    } catch (error) {
+        console.error('MongoDB connection error:', error.message);
+        process.exit(1); // Exit process with failure
+    }
+};
 
-module.exports = pool;
+module.exports = connectDB;

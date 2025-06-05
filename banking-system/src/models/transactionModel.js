@@ -1,22 +1,42 @@
-const pool = require('../config/db');
+const mongoose = require('mongoose');
 
-class TransactionModel {
-    static async createTransaction(accountId, type, amount, connection) {
-        const conn = connection || pool;
-        await conn.execute(
-            'INSERT INTO Transactions (account_id, type, amount) VALUES (?, ?, ?)',
-            [accountId, type, amount]
-        );
+const transactionSchema = new mongoose.Schema({
+    account: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Account', // Reference to the Account model
+        required: true
+    },
+    type: {
+        type: String,
+        enum: ['deposit', 'withdrawal'],
+        required: [true, 'Transaction type is required']
+    },
+    amount: {
+        type: Number,
+        required: [true, 'Amount is required'],
+        min: [0.01, 'Amount must be a positive number']
+    },
+    timestamp: {
+        type: Date,
+        default: Date.now
     }
+});
 
-    static async getTransactionsByAccountId(accountId) {
-        const [rows] = await pool.execute('SELECT * FROM Transactions WHERE account_id = ? ORDER BY timestamp DESC', [accountId]);
-        const parsedRows = rows.map(row => ({
-            ...row,
-            amount: parseFloat(row.amount) // Convert amount to a float
-        }));
-        return parsedRows;
-    }
-}
+// Static method to get transactions by account ID
+transactionSchema.statics.getTransactionsByAccountId = async function(accountId) {
+    return this.find({ account: accountId }).sort({ timestamp: -1 }).exec();
+};
 
-module.exports = TransactionModel;
+// Static method to create a new transaction
+transactionSchema.statics.createTransaction = async function(accountId, type, amount) {
+    const newTransaction = new this({
+        account: accountId,
+        type: type,
+        amount: amount
+    });
+    await newTransaction.save();
+};
+
+const Transaction = mongoose.model('Transaction', transactionSchema);
+
+module.exports = Transaction;

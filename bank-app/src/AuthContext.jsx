@@ -24,11 +24,8 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('user', JSON.stringify(userData));
         setAccessToken(token);
         setUser(userData);
-        if (userData.role === 'customer') {
-            navigate('/customer/transactions');
-        } else if (userData.role === 'banker') {
-            navigate('/banker/accounts');
-        }
+        // Redirect to dashboard-redirect route after login
+        navigate('/dashboard-redirect');
     };
 
     const logout = () => {

@@ -1,81 +1,85 @@
 // banking-system/seedUsers.js
-const pool = require('./src/config/db');
-const bcrypt = require('bcryptjs');
+const connectDB = require('./src/config/db');
+const User = require('./src/models/userModel');
+const Account = require('./src/models/accountModel');
+const mongoose = require('mongoose'); // Import mongoose here to use disconnect in finally block
 
 async function seed() {
+    await connectDB(); // Ensure MongoDB is connected
+
     try {
-        // --- Banker User ---
-        const hashedPasswordBanker = await bcrypt.hash('1234', 10);
-        await pool.execute(
-            `INSERT INTO Users (username, email, password, role) VALUES (?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE password = VALUES(password), role = VALUES(role)`,
-            ['admin', 'admin@bank.com', hashedPasswordBanker, 'banker']
-        );
-        console.log('Banker user seeded.');
+        console.log('Starting database seeding...');
 
-        // --- Customer1 User ---
-        const hashedPasswordCustomer1 = await bcrypt.hash('123456', 10);
-        await pool.execute(
-            `INSERT INTO Users (username, email, password, role) VALUES (?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE password = VALUES(password), role = VALUES(role)`,
-            ['shubham', 'shubham@bank.com', hashedPasswordCustomer1, 'customer']
-        );
-        console.log('Customer user seeded.');
+        // --- IMPORTANT: Clear existing data before seeding to ensure fresh state ---
+        console.log('Clearing existing User and Account data...');
+        await User.deleteMany({});
+        await Account.deleteMany({});
+        console.log('Existing User and Account data cleared.');
 
-        // Get customer1's user_id
-        const [customer1Rows] = await pool.execute('SELECT user_id FROM Users WHERE username = ?', ['shubham']);
-        const customer1UserId = customer1Rows[0].user_id;
 
-        // Check if an account already exists for customer1
-        const [existingAccount1] = await pool.execute('SELECT account_id FROM Accounts WHERE user_id = ?', [customer1UserId]);
-        if (existingAccount1.length === 0) {
-            // Create an account for customer1 only if it doesn't exist
-            const accountNumber1 = 'ACC' + Math.floor(100000000 + Math.random() * 900000000);
-            await pool.execute(
-                `INSERT INTO Accounts (user_id, account_number, balance) VALUES (?, ?, ?)`,
-                [customer1UserId, accountNumber1, 1000.00]
-            );
-            console.log('Customer account seeded for customer1.');
-        } else {
-            console.log('Account for customer1 already exists, skipping creation.');
-        }
+        // --- Banker User (admin) ---
+        // Use `new User()` and `save()` to explicitly trigger the pre('save') hook for hashing.
+        const adminUser = new User({
+            username: 'admin',
+            email: 'adminr@bank.com',
+            password: 'admin123', // This plain text will be hashed by the pre-save hook
+            role: 'banker'
+        });
+        await adminUser.save(); // Save the new user document
+        console.log('Banker user "admin" created.');
+
+        // --- Customer User (shubham) ---
+        const shubhamUser = new User({
+            username: 'shubham',
+            email: 'shubham@bank.com',
+            password: '123456', // This plain text will be hashed by the pre-save hook
+            role: 'customer'
+        });
+        await shubhamUser.save(); // Save the new user document
+        console.log('Customer user "shubham" created.');
+
+        // Create an account for shubham
+        const accountNumber1 = 'ACC' + Math.floor(100000000 + Math.random() * 900000000);
+        await Account.create({
+            user: shubhamUser._id, // Use the _id from the newly saved shubhamUser
+            accountNumber: accountNumber1,
+            balance: 1000.00
+        });
+        console.log('Customer account created for "shubham".');
 
 
         // --- New User (vishwakarmashubham852@gmail.com) ---
         const newUsername = "vishwakarmashubham852@gmail.com";
-        const newPassword = "1234";
-        const hashedPasswordNewUser = await bcrypt.hash(newPassword, 10);
+        const newPassword = "123456"; // Password at least 6 characters
 
-        await pool.execute(
-            `INSERT INTO Users (username, email, password, role) VALUES (?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE password = VALUES(password), role = VALUES(role)`,
-            [newUsername, newUsername, hashedPasswordNewUser, 'customer']
-        );
-        console.log(`New user '${newUsername}' seeded.`);
+        const newUser = new User({
+            username: newUsername,
+            email: newUsername,
+            password: newPassword, // This plain text will be hashed by the pre-save hook
+            role: 'customer'
+        });
+        await newUser.save(); // Save the new user document
+        console.log(`New user '${newUsername}' created.`);
 
-        // Get the new user's user_id
-        const [newUserRows] = await pool.execute('SELECT user_id FROM Users WHERE username = ?', [newUsername]);
-        const newUserId = newUserRows[0].user_id;
+        // Create an account for the new user
+        const accountNumber2 = 'ACC' + Math.floor(100000000 + Math.random() * 900000000);
+        await Account.create({
+            user: newUser._id, // Use the _id from the newly saved newUser
+            accountNumber: accountNumber2,
+            balance: 500.00
+        });
+        console.log(`New user's account created for ${newUsername}.`);
 
-        // Check if an account already exists for the new user
-        const [existingAccount2] = await pool.execute('SELECT account_id FROM Accounts WHERE user_id = ?', [newUserId]);
-        if (existingAccount2.length === 0) {
-            // Create an account for the new user only if it doesn't exist
-            const accountNumber2 = 'ACC' + Math.floor(100000000 + Math.random() * 900000000);
-            await pool.execute(
-                `INSERT INTO Accounts (user_id, account_number, balance) VALUES (?, ?, ?)`,
-                [newUserId, accountNumber2, 500.00]
-            );
-            console.log(`New user's account seeded for ${newUsername}.`);
-        } else {
-            console.log(`Account for ${newUsername} already exists, skipping creation.`);
-        }
 
+        console.log('Database seeding complete.');
 
     } catch (error) {
         console.error('Error seeding database:', error);
     } finally {
-        if (pool) await pool.end();
+        // Ensure mongoose is connected before trying to disconnect
+        if (mongoose.connection.readyState !== 0) {
+            await mongoose.disconnect(); // Disconnect from MongoDB
+        }
         process.exit();
     }
 }

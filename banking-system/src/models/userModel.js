@@ -1,53 +1,69 @@
-const pool = require('../config/db');
+const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const validator = require('validator'); // For email validation
 
-class UserModel {
-    static async findByUsernameOrEmail(identifier) {
-        const [rows] = await pool.execute(
-            'SELECT * FROM Users WHERE username = ? OR email = ?',
-            [identifier, identifier]
-        );
-        return rows[0];
-    }
-
-    static async comparePassword(password, hashedPassword) {
-        return bcrypt.compare(password, hashedPassword);
-    }
-
-    static async findById(userId) {
-        const [rows] = await pool.execute('SELECT user_id, username, email, role FROM Users WHERE user_id = ?', [userId]);
-        return rows[0];
-    }
-
-    static async update(userId, username, email, hashedPassword) {
-        let query = 'UPDATE Users SET ';
-        const params = [];
-        const updates = [];
-        let paramIndex = 0; // For tracking parameter index if needed, but '?' handles it
-
-        if (username !== undefined) {
-            updates.push('username = ?');
-            params.push(username);
+const userSchema = new mongoose.Schema({
+    username: {
+        type: String,
+        required: [true, 'Username is required'],
+        unique: true,
+        trim: true,
+        minlength: [3, 'Username must be at least 3 characters long']
+    },
+    email: {
+        type: String,
+        required: [true, 'Email is required'],
+        unique: true,
+        trim: true,
+        lowercase: true,
+        validate: {
+            validator: validator.isEmail,
+            message: 'Please enter a valid email address'
         }
-        if (email !== undefined) {
-            updates.push('email = ?');
-            params.push(email);
-        }
-        if (hashedPassword !== undefined) {
-            updates.push('password = ?');
-            params.push(hashedPassword);
-        }
-
-        if (updates.length === 0) {
-            return { affectedRows: 0 }; // Nothing to update
-        }
-
-        query += updates.join(', ') + ' WHERE user_id = ?';
-        params.push(userId);
-
-        const [result] = await pool.execute(query, params);
-        return result;
+    },
+    password: {
+        type: String,
+        required: [true, 'Password is required'],
+        minlength: [6, 'Password must be at least 6 characters long'],
+        select: false // Do not return password by default in queries
+    },
+    role: {
+        type: String,
+        enum: ['customer', 'banker'],
+        required: [true, 'Role is required']
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
     }
-}
+}, {
+    // Mongoose automatically adds `_id`
+    // No `timestamps: true` here as we have custom `createdAt`
+});
 
-module.exports = UserModel;
+// Hash password before saving
+userSchema.pre('save', async function(next) {
+    if (!this.isModified('password')) {
+        return next();
+    }
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+});
+
+// Method to compare passwords
+userSchema.methods.comparePassword = async function(candidatePassword) {
+    return bcrypt.compare(candidatePassword, this.password);
+};
+
+// Method to find user by username or email (for login)
+userSchema.statics.findByUsernameOrEmail = async function(identifier) {
+    const user = await this.findOne({
+        $or: [{ username: identifier }, { email: identifier }]
+    }).select('+password'); // Select password explicitly for login comparison
+    return user;
+};
+
+const User = mongoose.model('User', userSchema);
+
+module.exports = User;

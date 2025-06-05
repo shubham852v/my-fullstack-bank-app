@@ -1,7 +1,6 @@
 import axios from 'axios';
 
-// This API_URL will be replaced by an environment variable during deployment
-// For local development, it defaults to http://localhost:5000/api
+// IMPORTANT: Uses Vite's environment variable for API URL
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 /**

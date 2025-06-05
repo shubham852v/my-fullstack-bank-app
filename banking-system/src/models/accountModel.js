@@ -1,52 +1,63 @@
-const pool = require('../config/db');
+const mongoose = require('mongoose');
 
-class AccountModel {
-    static async getAllCustomerAccounts() {
-        const [rows] = await pool.execute(`
-            SELECT
-                a.account_id,
-                a.user_id,
-                u.username,
-                u.email,
-                a.account_number,
-                a.balance,
-                a.created_at,
-                a.updated_at
-            FROM Accounts a
-            JOIN Users u ON a.user_id = u.user_id
-            WHERE u.role = 'customer'
-            ORDER BY u.username;
-        `);
-        // Crucial: Map over rows to ensure 'balance' is a number
-        const parsedRows = rows.map(row => ({
-            ...row,
-            balance: parseFloat(row.balance) // Convert balance to a float
-        }));
-        return parsedRows;
+const accountSchema = new mongoose.Schema({
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User', // Reference to the User model
+        required: true,
+        unique: true // One account per user
+    },
+    accountNumber: {
+        type: String,
+        required: [true, 'Account number is required'],
+        unique: true,
+        trim: true
+    },
+    balance: {
+        type: Number,
+        required: [true, 'Balance is required'],
+        default: 0.00,
+        min: [0, 'Balance cannot be negative'] // Ensure balance doesn't go below zero
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now
     }
+});
 
-    static async getAccountByUserId(userId) {
-        const [rows] = await pool.execute('SELECT * FROM Accounts WHERE user_id = ?', [userId]);
-        const account = rows[0];
-        if (account && typeof account.balance === 'string') {
-            account.balance = parseFloat(account.balance);
-        }
-        return account;
-    }
+// Update `updatedAt` field on every save
+accountSchema.pre('save', function(next) {
+    this.updatedAt = Date.now();
+    next();
+});
 
-    static async getAccountByAccountId(accountId) {
-        const [rows] = await pool.execute('SELECT * FROM Accounts WHERE account_id = ?', [accountId]);
-        const account = rows[0];
-        if (account && typeof account.balance === 'string') {
-            account.balance = parseFloat(account.balance);
-        }
-        return account;
-    }
+// Static method to find all customer accounts, populating user details
+accountSchema.statics.getAllCustomerAccounts = async function() {
+    return this.find()
+        .populate('user', 'username email role') // Populate username, email, role from User model
+        .exec();
+};
 
-    static async updateBalance(accountId, newBalance, connection) {
-        const conn = connection || pool;
-        await conn.execute('UPDATE Accounts SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE account_id = ?', [newBalance, accountId]);
-    }
-}
+// Static method to get account by user ID
+accountSchema.statics.getAccountByUserId = async function(userId) {
+    return this.findOne({ user: userId }).exec();
+};
 
-module.exports = AccountModel;
+// Static method to get account by account ID
+accountSchema.statics.getAccountByAccountId = async function(accountId) {
+    return this.findById(accountId).exec();
+};
+
+// Static method to update balance (simplified for direct update, not transactional)
+accountSchema.statics.updateBalance = async function(accountId, newBalance) {
+    await this.findByIdAndUpdate(accountId, { balance: newBalance, updatedAt: Date.now() }).exec();
+};
+
+
+const Account = mongoose.model('Account', accountSchema);
+
+module.exports = Account;

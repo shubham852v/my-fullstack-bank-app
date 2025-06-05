@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getCustomerDashboard, depositAmount, withdrawAmount } from '../api/customer';
-import { useAuth } from '../AuthContext.jsx';
+import { useAuth } from '../AuthContext.jsx'; // Corrected import to .jsx
 
 const CustomerTransactionsPage = () => {
     const [dashboardData, setDashboardData] = useState(null);
@@ -59,7 +59,7 @@ const CustomerTransactionsPage = () => {
             fetchDashboardData();
             setTimeout(() => setShowPopup(false), 1500);
         } catch (err) {
-            setPopupMessage(err.message || String(err));
+            setPopupMessage(err.message || String(err)); // Ensure error is a string
         }
     };
 

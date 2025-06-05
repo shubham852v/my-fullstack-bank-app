@@ -1,24 +1,33 @@
-const AccountModel = require('../models/accountModel');
-const TransactionModel = require('../models/transactionModel');
-const UserModel = require('../models/userModel');
-const pool = require('../config/db');
-const bcrypt = require('bcryptjs');
-const { invalidateToken } = require('../middleware/authMiddleware');
+const Account = require('../models/accountModel');
+const Transaction = require('../models/transactionModel');
+const User = require('../models/userModel'); // Import User model
+const { invalidateToken } = require('../middleware/authMiddleware'); // Import invalidateToken
 
 exports.getCustomerDashboard = async (req, res) => {
-    const { userId } = req.user;
+    const { userId } = req.user; // userId is a string representation of MongoDB ObjectId
 
     try {
-        const account = await AccountModel.getAccountByUserId(userId);
+        const account = await Account.getAccountByUserId(userId);
         if (!account) {
             return res.status(404).json({ message: 'Account not found for this customer.' });
         }
 
-        const transactions = await TransactionModel.getTransactionsByAccountId(account.account_id);
+        const transactions = await Transaction.getTransactionsByAccountId(account._id);
 
+        // Map account and transactions to match previous API response structure
         res.status(200).json({
-            account: account,
-            transactions: transactions
+            account: {
+                accountId: account._id,
+                accountNumber: account.accountNumber,
+                balance: account.balance
+            },
+            transactions: transactions.map(tx => ({
+                transaction_id: tx._id,
+                account_id: tx.account,
+                type: tx.type,
+                amount: tx.amount,
+                timestamp: tx.timestamp
+            }))
         });
 
     } catch (error) {
@@ -35,34 +44,30 @@ exports.deposit = async (req, res) => {
         return res.status(400).json({ message: 'Invalid deposit amount.' });
     }
 
-    let connection;
     try {
-        connection = await pool.getConnection();
-        await connection.beginTransaction();
-
-        const account = await AccountModel.getAccountByUserId(userId);
+        // Find account by user ID
+        const account = await Account.getAccountByUserId(userId);
         if (!account) {
-            await connection.rollback();
             return res.status(404).json({ message: 'Account not found.' });
         }
 
-        const newBalance = parseFloat(account.balance) + parseFloat(amount);
+        const newBalance = account.balance + parseFloat(amount);
 
-        await AccountModel.updateBalance(account.account_id, newBalance, connection);
-        await TransactionModel.createTransaction(account.account_id, 'deposit', amount, connection);
+        // Update balance and create transaction.
+        // For simplicity, using single document update for balance.
+        // For strict atomicity across multiple documents, MongoDB transactions
+        // (requiring replica set) would be used.
+        await Account.updateBalance(account._id, newBalance); // Update balance
+        await Transaction.createTransaction(account._id, 'deposit', amount); // Create transaction
 
-        await connection.commit();
         res.status(200).json({
             message: 'Deposit successful',
             newBalance: newBalance.toFixed(2)
         });
 
     } catch (error) {
-        if (connection) await connection.rollback();
         console.error('Error during deposit:', error);
         res.status(500).json({ message: 'Server error during deposit' });
-    } finally {
-        if (connection) connection.release();
     }
 };
 
@@ -74,43 +79,32 @@ exports.withdraw = async (req, res) => {
         return res.status(400).json({ message: 'Invalid withdrawal amount.' });
     }
 
-    let connection;
     try {
-        connection = await pool.getConnection();
-        await connection.beginTransaction();
-
-        const account = await AccountModel.getAccountByUserId(userId);
+        const account = await Account.getAccountByUserId(userId);
         if (!account) {
-            await connection.rollback();
             return res.status(404).json({ message: 'Account not found.' });
         }
 
-        if (parseFloat(account.balance) < parseFloat(amount)) {
-            await connection.rollback();
+        if (account.balance < parseFloat(amount)) {
             return res.status(400).json({ message: 'Insufficient Funds' });
         }
 
-        const newBalance = parseFloat(account.balance) - parseFloat(amount);
+        const newBalance = account.balance - parseFloat(amount);
 
-        await AccountModel.updateBalance(account.account_id, newBalance, connection);
-        await TransactionModel.createTransaction(account.account_id, 'withdrawal', amount, connection);
+        await Account.updateBalance(account._id, newBalance); // Update balance
+        await Transaction.createTransaction(account._id, 'withdrawal', amount); // Create transaction
 
-        await connection.commit();
         res.status(200).json({
             message: 'Withdrawal successful',
             newBalance: newBalance.toFixed(2)
         });
 
     } catch (error) {
-        if (connection) await connection.rollback();
         console.error('Error during withdrawal:', error);
         res.status(500).json({ message: 'Server error during withdrawal' });
-    } finally {
-        if (connection) connection.release();
     }
 };
 
-// New: Function to update customer's own profile
 exports.updateProfile = async (req, res) => {
     const { userId: authenticatedUserId, role: authenticatedUserRole } = req.user; // User ID from the token
     const { username, email, password } = req.body; // New details from request body
@@ -120,21 +114,20 @@ exports.updateProfile = async (req, res) => {
             return res.status(403).json({ message: 'Access denied: Only customers can update their own profile.' });
         }
 
-        const userToUpdate = await UserModel.findById(authenticatedUserId);
+        const userToUpdate = await User.findById(authenticatedUserId);
         if (!userToUpdate) {
             return res.status(404).json({ message: 'Authenticated user not found.' });
         }
 
-        let hashedPassword;
-        if (password) {
-            hashedPassword = await bcrypt.hash(password, 10);
+        // Only update fields that are provided
+        if (username !== undefined) userToUpdate.username = username;
+        if (email !== undefined) userToUpdate.email = email;
+        if (password !== undefined) {
+            // Mongoose pre-save hook will hash the password if it's modified
+            userToUpdate.password = password;
         }
 
-        const result = await UserModel.update(authenticatedUserId, username, email, hashedPassword);
-
-        if (result.affectedRows === 0) {
-            return res.status(400).json({ message: 'No changes made or user not found.' });
-        }
+        await userToUpdate.save(); // Save the updated user document
 
         if (password || username || email) {
             invalidateToken(req.headers['authorization']); // Invalidate the current token
@@ -145,8 +138,10 @@ exports.updateProfile = async (req, res) => {
 
     } catch (error) {
         console.error('Error updating customer profile:', error);
-        if (error.code === 'ER_DUP_ENTRY') {
-            return res.status(409).json({ message: 'Username or email already exists.' });
+        // MongoDB duplicate key error code
+        if (error.code === 11000) {
+            const field = Object.keys(error.keyValue)[0];
+            return res.status(409).json({ message: `${field.charAt(0).toUpperCase() + field.slice(1)} already exists.` });
         }
         res.status(500).json({ message: 'Server error updating profile' });
     }

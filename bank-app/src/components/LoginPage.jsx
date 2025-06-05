@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../AuthContext.jsx';
+import { useAuth } from '../AuthContext.jsx'; // Corrected import to .jsx
 import { loginUser } from '../api/auth';
 
 const LoginPage = () => {

@@ -1,12 +1,16 @@
-ECHO is on.
-# Node
+# Node modules
 node_modules/
+
+# dotenv files
 .env
 
-# Python
-__pycache__/
-*.pyc
+# Build outputs
+dist/
+build/
 
-# OS
+# Logs
+*.log
+
+# OS generated files
 .DS_Store
 Thumbs.db
